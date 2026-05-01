@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "buildCommand": "cd apps/web && npm install && npx ng build",
+  "outputDirectory": "apps/web/dist/web/browser",
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "https://focusscrum.onrender.com/api/$1" },
+    { "source": "/socket.io/(.*)", "destination": "https://focusscrum.onrender.com/socket.io/$1" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

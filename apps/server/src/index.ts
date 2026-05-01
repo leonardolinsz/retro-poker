@@ -10,9 +10,12 @@ import { boardRoutes } from './routes/boards.js';
 import { setupRetroWs } from './ws/retro.js';
 import { setupPokerWs } from './ws/poker.js';
 import { pokerRoutes } from './routes/poker.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const PORT = Number(process.env.PORT) || 3001;
-const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
+const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:4200';
+const SERVE_STATIC = process.env.SERVE_STATIC === 'true';
 
 const app = express();
 const httpServer = createServer(app);
@@ -36,6 +39,16 @@ app.get('/api/me', ensureSession, (req, res) => {
 
 app.use('/api/boards', ensureSession, boardRoutes);
 app.use('/api/poker', pokerRoutes);
+
+// Serve Angular static files in production
+if (SERVE_STATIC) {
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const staticPath = path.join(__dirname, '../../web/dist/web/browser');
+  app.use(express.static(staticPath));
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(staticPath, 'index.html'));
+  });
+}
 
 const retroNs = io.of('/retro');
 const pokerNs = io.of('/poker');

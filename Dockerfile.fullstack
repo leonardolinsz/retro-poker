@@ -1,0 +1,31 @@
+FROM node:20-alpine
+
+RUN corepack enable && corepack prepare pnpm@10.8.1 --activate
+
+WORKDIR /app
+
+# Copy workspace config
+COPY package.json pnpm-workspace.yaml ./
+COPY apps/server/package.json apps/server/
+COPY apps/web/package.json apps/web/
+COPY packages/shared/package.json packages/shared/
+
+# Install ALL dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source
+COPY packages/shared/ packages/shared/
+COPY apps/server/ apps/server/
+COPY apps/web/ apps/web/
+COPY prisma/ prisma/
+
+# Generate Prisma client
+RUN cd apps/server && npx prisma generate
+
+# Build Angular
+RUN cd apps/web && npx ng build
+
+EXPOSE 3001
+
+ENV SERVE_STATIC=true
+CMD ["pnpm", "dev:server"]
