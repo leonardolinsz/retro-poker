@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  id          String   @id @default(uuid()) @db.Uuid
+  displayName String?  @map("display_name") @db.VarChar(100)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  lastSeenAt  DateTime @default(now()) @map("last_seen_at") @db.Timestamptz()
+
+  boards RetroBoard[]
+  cards  RetroCard[]
+
+  @@map("sessions")
+}
+
+model RetroBoard {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(200)
+  ownerId     String   @map("owner_id") @db.Uuid
+  inviteCode  String   @unique @map("invite_code") @db.VarChar(12)
+  cardsHidden Boolean  @default(false) @map("cards_hidden")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  owner   Session       @relation(fields: [ownerId], references: [id])
+  columns RetroColumn[]
+
+  @@map("retro_boards")
+}
+
+model RetroColumn {
+  id        String @id @default(uuid()) @db.Uuid
+  boardId   String @map("board_id") @db.Uuid
+  name      String @db.VarChar(100)
+  color     String @db.VarChar(7)
+  cardColor String @map("card_color") @db.VarChar(7)
+  position  Int    @db.SmallInt
+
+  board RetroBoard @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards RetroCard[]
+
+  @@map("retro_columns")
+}
+
+model RetroCard {
+  id         String   @id @default(uuid()) @db.Uuid
+  columnId   String   @map("column_id") @db.Uuid
+  authorId   String   @map("author_id") @db.Uuid
+  content    String
+  position   Int      @db.SmallInt
+  mergedFrom String[] @map("merged_from") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  column RetroColumn @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  author Session     @relation(fields: [authorId], references: [id])
+
+  @@map("retro_cards")
+}

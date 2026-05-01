@@ -1,0 +1,30 @@
+{
+  "name": "focusscrum",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "dev:server": "pnpm --filter @focusscrum/server dev",
+    "dev:web": "pnpm --filter @focusscrum/web dev",
+    "build": "pnpm -r build",
+    "db:push": "pnpm --filter @focusscrum/server db:push",
+    "db:migrate": "pnpm --filter @focusscrum/server db:migrate",
+    "db:studio": "pnpm --filter @focusscrum/server db:studio"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "prisma",
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild"
+    ]
+  },
+  "devDependencies": {
+    "prisma": "^6.6.0"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.6.0"
+  }
+}
