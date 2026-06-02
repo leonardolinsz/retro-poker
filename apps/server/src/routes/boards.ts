@@ -17,9 +17,14 @@ boardRoutes.get('/', async (req, res) => {
 
 // Create board
 boardRoutes.post('/', async (req, res) => {
-  const { name } = req.body;
+  const { name, columns } = req.body;
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
     return res.status(400).json({ error: 'Name is required' });
+  }
+
+  const columnConfigs = columns || DEFAULT_COLUMNS;
+  if (!Array.isArray(columnConfigs) || columnConfigs.length < 3 || columnConfigs.length > 8) {
+    return res.status(400).json({ error: 'Must have between 3 and 8 columns' });
   }
 
   const board = await prisma.retroBoard.create({
@@ -28,11 +33,11 @@ boardRoutes.post('/', async (req, res) => {
       ownerId: req.sessionId!,
       inviteCode: nanoid(8),
       columns: {
-        create: DEFAULT_COLUMNS.map((col) => ({
+        create: columnConfigs.map((col: any, idx: number) => ({
           name: col.name,
           color: col.color,
           cardColor: col.cardColor,
-          position: col.position,
+          position: col.position ?? idx,
         })),
       },
     },

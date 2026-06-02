@@ -4,200 +4,316 @@ import cookie from 'cookie';
 
 const COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'fs_sid';
 
+// In-memory cache: boardId → lightweight board meta
+// Cleared when all sockets leave the room
+interface BoardMeta {
+  ownerId: string;
+  cardsHidden: boolean;
+  columnCount: number;
+}
+const boardCache = new Map<string, BoardMeta>();
+
 function getSessionId(socket: Socket): string | null {
   const raw = socket.handshake.headers.cookie;
   if (!raw) return null;
-  const cookies = cookie.parse(raw);
-  return cookies[COOKIE_NAME] || null;
+  return cookie.parse(raw)[COOKIE_NAME] || null;
+}
+
+async function getOrLoadMeta(boardId: string): Promise<BoardMeta | null> {
+  if (boardCache.has(boardId)) return boardCache.get(boardId)!;
+
+  const board = await prisma.retroBoard.findUnique({
+    where: { id: boardId },
+    select: {
+      ownerId: true,
+      cardsHidden: true,
+      _count: { select: { columns: true } },
+    },
+  });
+  if (!board) return null;
+
+  const meta: BoardMeta = {
+    ownerId: board.ownerId,
+    cardsHidden: board.cardsHidden,
+    columnCount: board._count.columns,
+  };
+  boardCache.set(boardId, meta);
+  return meta;
 }
 
 export function setupRetroWs(ns: Namespace) {
   ns.on('connection', async (socket) => {
     const sessionId = getSessionId(socket);
-    if (!sessionId) {
-      socket.disconnect(true);
-      return;
-    }
+    if (!sessionId) { socket.disconnect(true); return; }
 
     const boardId = socket.handshake.query.boardId as string;
-    if (!boardId) {
-      socket.disconnect(true);
-      return;
-    }
+    if (!boardId) { socket.disconnect(true); return; }
 
     socket.join(boardId);
     socket.data.sessionId = sessionId;
     socket.data.boardId = boardId;
 
-    // Send full board state on connect
-    const board = await prisma.retroBoard.findUnique({
-      where: { id: boardId },
-      include: { columns: { include: { cards: { orderBy: { position: 'asc' } } }, orderBy: { position: 'asc' } } },
+    // Load meta into cache + send full board in parallel
+    const [, board] = await Promise.all([
+      getOrLoadMeta(boardId),
+      prisma.retroBoard.findUnique({
+        where: { id: boardId },
+        include: {
+          columns: {
+            orderBy: { position: 'asc' },
+            include: { cards: { orderBy: { position: 'asc' } } },
+          },
+        },
+      }),
+    ]);
+
+    if (!board) { socket.disconnect(true); return; }
+
+    // Hydrate cache with real data from the full query (avoids a second round-trip)
+    boardCache.set(boardId, {
+      ownerId: board.ownerId,
+      cardsHidden: board.cardsHidden,
+      columnCount: board.columns.length,
     });
-    if (board) {
-      socket.emit('board:sync', board);
-    }
+
+    socket.emit('board:sync', board);
     ns.to(boardId).emit('participant:joined', { sessionId });
+
+    // ── Helpers ──
+
+    const isOwner = () => boardCache.get(boardId)?.ownerId === sessionId;
 
     // ── Card events ──
 
     socket.on('card:create', async (payload: { columnId: string; content: string }) => {
-      const maxPos = await prisma.retroCard.aggregate({
-        where: { columnId: payload.columnId },
-        _max: { position: true },
-      });
+      // Use current timestamp as position — avoids aggregate query, still ordered
+      const position = Date.now();
       const card = await prisma.retroCard.create({
         data: {
           columnId: payload.columnId,
           authorId: sessionId,
           content: payload.content,
-          position: (maxPos._max.position ?? -1) + 1,
+          position,
         },
       });
       ns.to(boardId).emit('card:created', card);
     });
 
     socket.on('card:update', async (payload: { cardId: string; content: string }) => {
-      const card = await prisma.retroCard.update({
+      // Fetch only the card — board ownership check uses cache
+      const card = await prisma.retroCard.findUnique({
+        where: { id: payload.cardId },
+        select: { authorId: true },
+      });
+      if (!card) return;
+      if (!isOwner() && card.authorId !== sessionId) return;
+
+      // Optimistic: emit immediately, then persist
+      const updated = await prisma.retroCard.update({
         where: { id: payload.cardId },
         data: { content: payload.content },
       });
-      ns.to(boardId).emit('card:updated', card);
+      ns.to(boardId).emit('card:updated', updated);
     });
 
     socket.on('card:delete', async (payload: { cardId: string }) => {
+      const card = await prisma.retroCard.findUnique({
+        where: { id: payload.cardId },
+        select: { authorId: true },
+      });
+      if (!card) return;
+      if (!isOwner() && card.authorId !== sessionId) return;
+
       await prisma.retroCard.delete({ where: { id: payload.cardId } });
       ns.to(boardId).emit('card:deleted', { cardId: payload.cardId });
     });
 
     socket.on('card:move', async (payload: { cardId: string; targetColumnId: string; targetPosition: number }) => {
-      await prisma.retroCard.update({
-        where: { id: payload.cardId },
-        data: { columnId: payload.targetColumnId, position: payload.targetPosition },
-      });
+      // Fire-and-forget persist — emit immediately for snappy UX
       ns.to(boardId).emit('card:moved', {
         cardId: payload.cardId,
         columnId: payload.targetColumnId,
         position: payload.targetPosition,
       });
+      await prisma.retroCard.update({
+        where: { id: payload.cardId },
+        data: { columnId: payload.targetColumnId, position: payload.targetPosition },
+      });
     });
 
     socket.on('card:merge', async (payload: { sourceCardId: string; targetCardId: string }) => {
+      // Fetch both cards in parallel, ownership check from cache
       const [source, target] = await Promise.all([
         prisma.retroCard.findUnique({ where: { id: payload.sourceCardId } }),
         prisma.retroCard.findUnique({ where: { id: payload.targetCardId } }),
       ]);
       if (!source || !target) return;
+      if (!isOwner() && source.authorId !== sessionId) return;
 
-      const updated = await prisma.retroCard.update({
-        where: { id: target.id },
-        data: {
-          content: `${target.content}\n---\n${source.content}`,
-          mergedFrom: { push: source.id },
-        },
-      });
-      await prisma.retroCard.delete({ where: { id: source.id } });
+      const existingSnapshots = Array.isArray(target.mergedSnapshots)
+        ? (target.mergedSnapshots as any[])
+        : [];
+      const newSnapshot = { id: source.id, content: source.content, authorId: source.authorId };
+
+      // Merge + delete in a single transaction
+      const [updated] = await prisma.$transaction([
+        prisma.retroCard.update({
+          where: { id: target.id },
+          data: {
+            mergedFrom: { push: source.id },
+            mergedSnapshots: [...existingSnapshots, newSnapshot],
+          },
+        }),
+        prisma.retroCard.delete({ where: { id: source.id } }),
+      ]);
 
       ns.to(boardId).emit('card:merged', { survivingCard: updated, removedCardId: source.id });
+    });
+
+    socket.on('card:unmerge', async (payload: { cardId: string; snapshotId: string }) => {
+      const card = await prisma.retroCard.findUnique({ where: { id: payload.cardId } });
+      if (!card) return;
+
+      const snapshots = Array.isArray(card.mergedSnapshots)
+        ? (card.mergedSnapshots as any[])
+        : [];
+      const snapshot = snapshots.find((s: any) => s.id === payload.snapshotId);
+      if (!snapshot) return;
+
+      if (!isOwner() && card.authorId !== sessionId && snapshot.authorId !== sessionId) return;
+
+      const remainingSnapshots = snapshots.filter((s: any) => s.id !== payload.snapshotId);
+      const remainingMergedFrom = card.mergedFrom.filter(id => id !== payload.snapshotId);
+
+      // Use timestamp as position — avoids aggregate query
+      const restoredPosition = Date.now();
+
+      const [updatedCard, restoredCard] = await prisma.$transaction([
+        prisma.retroCard.update({
+          where: { id: card.id },
+          data: { mergedFrom: remainingMergedFrom, mergedSnapshots: remainingSnapshots },
+        }),
+        prisma.retroCard.create({
+          data: {
+            id: snapshot.id,
+            columnId: card.columnId,
+            authorId: snapshot.authorId,
+            content: snapshot.content,
+            position: restoredPosition,
+            mergedFrom: [],
+            mergedSnapshots: [],
+          },
+        }),
+      ]);
+
+      ns.to(boardId).emit('card:unmerged', { updatedCard, restoredCard });
     });
 
     // ── Column events ──
 
     socket.on('column:rename', async (payload: { columnId: string; name: string }) => {
+      // Emit immediately — no auth needed (any participant can rename for now)
+      ns.to(boardId).emit('column:renamed', payload);
       await prisma.retroColumn.update({
         where: { id: payload.columnId },
         data: { name: payload.name },
       });
-      ns.to(boardId).emit('column:renamed', payload);
     });
 
     socket.on('column:remove', async (payload: { columnId: string }) => {
-      const board = await prisma.retroBoard.findUnique({ where: { id: boardId } });
-      if (!board || board.ownerId !== sessionId) {
+      const meta = boardCache.get(boardId);
+      if (!meta || meta.ownerId !== sessionId) {
         socket.emit('error', { message: 'Only the owner can remove columns' });
         return;
       }
-      const columnsCount = await prisma.retroColumn.count({ where: { boardId } });
-      if (columnsCount <= 3) {
+      if (meta.columnCount <= 3) {
         socket.emit('error', { message: 'Minimum 3 columns required' });
         return;
       }
+
       await prisma.retroColumn.delete({ where: { id: payload.columnId } });
+
+      // Update cache
+      meta.columnCount -= 1;
+
       ns.to(boardId).emit('column:removed', { columnId: payload.columnId });
     });
 
     socket.on('column:add', async (payload: { name: string; color: string; cardColor: string }) => {
-      const board = await prisma.retroBoard.findUnique({ where: { id: boardId } });
-      if (!board || board.ownerId !== sessionId) {
+      const meta = boardCache.get(boardId);
+      if (!meta || meta.ownerId !== sessionId) {
         socket.emit('error', { message: 'Only the owner can add columns' });
         return;
       }
-      const maxPos = await prisma.retroColumn.aggregate({
-        where: { boardId },
-        _max: { position: true },
-      });
+
+      // Use timestamp as position — avoids aggregate query
       const column = await prisma.retroColumn.create({
         data: {
           boardId,
           name: payload.name,
           color: payload.color,
           cardColor: payload.cardColor,
-          position: (maxPos._max.position ?? -1) + 1,
+          position: Date.now(),
         },
       });
 
-      const updatedBoard = await prisma.retroBoard.findUnique({
-        where: { id: boardId },
-        include: { columns: { include: { cards: { orderBy: { position: 'asc' } } }, orderBy: { position: 'asc' } } },
-      });
-      if (updatedBoard) {
-        ns.to(boardId).emit('board:sync', updatedBoard);
-      }
+      // Update cache
+      meta.columnCount += 1;
+
+      // Emit granular event instead of full board:sync
+      ns.to(boardId).emit('column:added', { ...column, cards: [] });
     });
 
     socket.on('column:reorder', async (payload: { columns: Array<{ id: string; position: number }> }) => {
-      const board = await prisma.retroBoard.findUnique({ where: { id: boardId } });
-      if (!board || board.ownerId !== sessionId) {
+      if (!isOwner()) {
         socket.emit('error', { message: 'Only the owner can reorder columns' });
         return;
       }
 
+      // Emit immediately for snappy UX
+      ns.to(boardId).emit('column:reordered', { columns: payload.columns });
+
+      // Persist in background
       await prisma.$transaction(
-        payload.columns.map((col) =>
+        payload.columns.map(col =>
           prisma.retroColumn.update({
             where: { id: col.id },
             data: { position: col.position },
           }),
         ),
       );
-
-      const updatedBoard = await prisma.retroBoard.findUnique({
-        where: { id: boardId },
-        include: { columns: { include: { cards: { orderBy: { position: 'asc' } } }, orderBy: { position: 'asc' } } },
-      });
-      if (updatedBoard) {
-        ns.to(boardId).emit('board:sync', updatedBoard);
-      }
     });
 
     // ── Board events ──
 
     socket.on('board:toggle_cards', async () => {
-      const board = await prisma.retroBoard.findUnique({ where: { id: boardId } });
-      if (!board || board.ownerId !== sessionId) {
+      const meta = boardCache.get(boardId);
+      if (!meta || meta.ownerId !== sessionId) {
         socket.emit('error', { message: 'Only the owner can toggle card visibility' });
         return;
       }
 
-      const updated = await prisma.retroBoard.update({
+      const newHidden = !meta.cardsHidden;
+      meta.cardsHidden = newHidden;
+
+      // Emit immediately
+      ns.to(boardId).emit('board:cards_toggled', { cardsHidden: newHidden });
+
+      // Persist in background
+      await prisma.retroBoard.update({
         where: { id: boardId },
-        data: { cardsHidden: !board.cardsHidden },
+        data: { cardsHidden: newHidden },
       });
-      ns.to(boardId).emit('board:cards_toggled', { cardsHidden: updated.cardsHidden });
     });
 
     socket.on('disconnect', () => {
       ns.to(boardId).emit('participant:left', { sessionId });
+
+      // Clear cache when room is empty
+      const roomSockets = ns.adapter.rooms.get(boardId);
+      if (!roomSockets || roomSockets.size === 0) {
+        boardCache.delete(boardId);
+      }
     });
   });
 }
