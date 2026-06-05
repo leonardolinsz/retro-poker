@@ -8,18 +8,23 @@ WORKDIR /app
 # Copy workspace config
 COPY package.json pnpm-workspace.yaml ./
 COPY apps/server/package.json apps/server/
+COPY apps/web/package.json apps/web/
 COPY packages/shared/package.json packages/shared/
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile
+# Install ALL dependencies (server + web)
+RUN pnpm install --no-frozen-lockfile
 
 # Copy source
 COPY packages/shared/ packages/shared/
 COPY apps/server/ apps/server/
+COPY apps/web/ apps/web/
 COPY prisma/ prisma/
 
 # Generate Prisma client
 RUN cd apps/server && npx prisma generate
+
+# Build Angular (served by the API when SERVE_STATIC=true)
+RUN cd apps/web && npx ng build
 
 # Entrypoint: applies the DB schema at runtime, then starts the server
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
@@ -27,5 +32,7 @@ RUN chmod +x /app/docker-entrypoint.sh
 
 EXPOSE 3001
 
+ENV NODE_ENV=production
+ENV SERVE_STATIC=true
 # Render injects PORT at runtime. Schema is synced on boot by the entrypoint.
 CMD ["/app/docker-entrypoint.sh"]

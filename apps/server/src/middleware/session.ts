@@ -40,7 +40,10 @@ export async function sessionMiddleware(req: Request, res: Response, next: NextF
 
   res.cookie(COOKIE_NAME, sid, {
     httpOnly: true,
-    sameSite: 'strict',
+    // In production the app is served over HTTPS — cookie must be Secure.
+    // lax keeps it sent on top-level navigations (same-site here).
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
     maxAge: COOKIE_MAX_AGE,
     path: '/',
   });

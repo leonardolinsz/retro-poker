@@ -17,14 +17,18 @@ const PORT = Number(process.env.PORT) || 3001;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:4200';
 const SERVE_STATIC = process.env.SERVE_STATIC === 'true';
 
+// With credentials, the CORS spec forbids a literal '*' origin. Map '*' to
+// `true`, which reflects the request's origin (valid with credentials).
+const corsOrigin: string | boolean = CORS_ORIGIN === '*' ? true : CORS_ORIGIN;
+
 const app = express();
 const httpServer = createServer(app);
 
 const io = new SocketIO(httpServer, {
-  cors: { origin: CORS_ORIGIN, credentials: true },
+  cors: { origin: corsOrigin, credentials: true },
 });
 
-app.use(cors({ origin: CORS_ORIGIN, credentials: true }));
+app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 app.use(sessionMiddleware);
