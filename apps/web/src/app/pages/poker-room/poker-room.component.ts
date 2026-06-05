@@ -5,28 +5,29 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Socket } from 'socket.io-client';
 import { SocketService } from '../../services/socket.service';
 import { SessionService } from '../../services/session.service';
+import { ThemeToggleComponent } from '../../components/theme-toggle.component';
 import { FIBONACCI_SCALE, type PokerRoom, type PokerParticipant, type PokerValue } from '@focusscrum/shared';
 
 @Component({
   selector: 'app-poker-room',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, ThemeToggleComponent],
   template: `
     <!-- Join screen -->
     @if (!joined) {
-      <div class="min-h-screen bg-gradient-to-br from-[#0F172A] to-[#1E293B] flex items-center justify-center px-4">
+      <div class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 dark:from-[#0F172A] dark:to-[#1E293B] flex items-center justify-center px-4">
         <div class="w-full max-w-sm">
           @if (error) {
             <div class="text-center">
-              <p class="text-red-400 text-lg mb-4">{{ error }}</p>
-              <a routerLink="/poker" class="text-blue-400 hover:text-blue-300">Voltar</a>
+              <p class="text-red-500 dark:text-red-400 text-lg mb-4">{{ error }}</p>
+              <a routerLink="/poker" class="text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300">Voltar</a>
             </div>
           } @else {
             <form (submit)="handleJoin($event)" class="space-y-4">
-              <h2 class="text-2xl font-bold text-white text-center mb-6">Entrar na Sala</h2>
+              <h2 class="text-2xl font-bold text-slate-800 dark:text-white text-center mb-6">Entrar na Sala</h2>
               <input [(ngModel)]="displayName" name="displayName" autofocus
                      placeholder="Seu nome..."
-                     class="w-full rounded-2xl bg-white/10 border border-white/10 px-5 py-4 text-white text-lg outline-none focus:ring-2 focus:ring-blue-500 transition placeholder:text-slate-500" />
+                     class="w-full rounded-2xl bg-white dark:bg-white/10 border border-slate-300 dark:border-white/10 px-5 py-4 text-slate-800 dark:text-white text-lg outline-none focus:ring-2 focus:ring-blue-500 transition placeholder:text-slate-400 dark:placeholder:text-slate-500" />
               <button type="submit" [disabled]="!displayName.trim()"
                       class="w-full rounded-2xl bg-blue-600 py-4 text-lg font-semibold text-white shadow-lg shadow-blue-600/30 transition-all hover:bg-blue-500 disabled:opacity-50">
                 Entrar
@@ -39,22 +40,23 @@ import { FIBONACCI_SCALE, type PokerRoom, type PokerParticipant, type PokerValue
 
     <!-- Room -->
     @if (joined && room) {
-      <div class="min-h-screen bg-gradient-to-br from-[#0F172A] to-[#1E293B] flex flex-col">
+      <div class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 dark:from-[#0F172A] dark:to-[#1E293B] flex flex-col">
         <!-- Header -->
-        <header class="flex items-center justify-between px-6 py-4 border-b border-white/10">
+        <header class="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-white/10">
           <div class="flex items-center gap-4">
-            <a routerLink="/" class="text-lg font-bold text-white/80 hover:text-white transition">FocusScrum</a>
-            <span class="text-white/20">|</span>
-            <h1 class="font-semibold text-white">{{ room.name }}</h1>
+            <a routerLink="/" class="text-lg font-bold text-slate-600 hover:text-slate-900 dark:text-white/80 dark:hover:text-white transition">FocusScrum</a>
+            <span class="text-slate-300 dark:text-white/20">|</span>
+            <h1 class="font-semibold text-slate-800 dark:text-white">{{ room.name }}</h1>
             @if (room.roundNumber > 0) {
-              <span class="text-sm text-slate-400 bg-white/5 rounded-full px-3 py-1">Rodada {{ room.roundNumber }}</span>
+              <span class="text-sm text-slate-500 dark:text-slate-400 bg-slate-200/70 dark:bg-white/5 rounded-full px-3 py-1">Rodada {{ room.roundNumber }}</span>
             }
           </div>
           <div class="flex items-center gap-3">
             <button (click)="handleCopyLink()"
-                    class="rounded-xl border border-white/20 px-4 py-2 text-sm text-white/70 hover:bg-white/10 transition">
+                    class="rounded-xl border border-slate-300 dark:border-white/20 px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:text-white/70 dark:hover:bg-white/10 transition">
               Copiar link
             </button>
+            <app-theme-toggle />
             @if (isOwner) {
               @if (room.status !== 'voting') {
                 <button (click)="handleStartRound()"
@@ -82,7 +84,7 @@ import { FIBONACCI_SCALE, type PokerRoom, type PokerParticipant, type PokerValue
                   {{ getCardDisplay(p) }}
                 </div>
                 <span class="text-sm max-w-[80px] truncate"
-                      [class]="p.sessionId === sessionId ? 'text-blue-400 font-semibold' : 'text-slate-400'">
+                      [class]="p.sessionId === sessionId ? 'text-blue-600 dark:text-blue-400 font-semibold' : 'text-slate-500 dark:text-slate-400'">
                   {{ p.displayName }}
                 </span>
               </div>
@@ -93,16 +95,16 @@ import { FIBONACCI_SCALE, type PokerRoom, type PokerParticipant, type PokerValue
           @if (room.status === 'revealed' && numericVotes.length > 0) {
             <div class="flex gap-8 text-center">
               <div>
-                <div class="text-3xl font-bold text-white">{{ avg.toFixed(1) }}</div>
-                <div class="text-xs text-slate-400 mt-1">Média</div>
+                <div class="text-3xl font-bold text-slate-800 dark:text-white">{{ avg.toFixed(1) }}</div>
+                <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">Média</div>
               </div>
               <div>
-                <div class="text-3xl font-bold text-white">{{ min }}</div>
-                <div class="text-xs text-slate-400 mt-1">Menor</div>
+                <div class="text-3xl font-bold text-slate-800 dark:text-white">{{ min }}</div>
+                <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">Menor</div>
               </div>
               <div>
-                <div class="text-3xl font-bold text-white">{{ max }}</div>
-                <div class="text-xs text-slate-400 mt-1">Maior</div>
+                <div class="text-3xl font-bold text-slate-800 dark:text-white">{{ max }}</div>
+                <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">Maior</div>
               </div>
             </div>
           }
@@ -115,7 +117,7 @@ import { FIBONACCI_SCALE, type PokerRoom, type PokerParticipant, type PokerValue
                         class="w-16 h-24 rounded-2xl text-xl font-bold transition-all duration-200"
                         [class]="selectedVote === value
                           ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/40 -translate-y-2 ring-2 ring-blue-400'
-                          : 'bg-[#1E3A5F] text-white/80 hover:bg-[#2563EB] hover:-translate-y-1 hover:shadow-lg hover:shadow-blue-500/20'">
+                          : 'bg-white text-slate-700 shadow-sm border border-slate-200 hover:bg-blue-50 dark:bg-[#1E3A5F] dark:text-white/80 dark:border-transparent dark:hover:bg-[#2563EB] hover:-translate-y-1 hover:shadow-lg hover:shadow-blue-500/20'">
                   {{ value }}
                 </button>
               }
@@ -124,7 +126,7 @@ import { FIBONACCI_SCALE, type PokerRoom, type PokerParticipant, type PokerValue
 
           <!-- Waiting -->
           @if (room.status === 'waiting') {
-            <p class="text-slate-500 text-lg">
+            <p class="text-slate-500 dark:text-slate-500 text-lg">
               {{ isOwner ? 'Clique "Iniciar Rodada" quando todos estiverem prontos' : 'Aguardando o facilitador iniciar a rodada...' }}
             </p>
           }
@@ -260,7 +262,7 @@ export class PokerRoomComponent implements OnInit, OnDestroy {
     const showVote = this.room?.status === 'revealed' && p.vote !== undefined;
     if (showVote) return 'bg-blue-600 text-white shadow-lg shadow-blue-600/30';
     if (p.hasVoted) return 'bg-emerald-600/80 text-white shadow-md';
-    return 'bg-white/5 border border-white/10 text-white/30';
+    return 'bg-slate-200/70 border border-slate-300 text-slate-400 dark:bg-white/5 dark:border-white/10 dark:text-white/30';
   }
 
   getCardDisplay(p: PokerParticipant): string {

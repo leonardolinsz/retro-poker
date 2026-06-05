@@ -6,6 +6,7 @@ module.exports = {
     extend: {
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
+        nexa: ['Nexa', 'Inter', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
         xl: '12px',

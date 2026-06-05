@@ -40,7 +40,7 @@ model RetroColumn {
   name      String @db.VarChar(100)
   color     String @db.VarChar(7)
   cardColor String @map("card_color") @db.VarChar(7)
-  position  Int    @db.SmallInt
+  position  Int
 
   board RetroBoard @relation(fields: [boardId], references: [id], onDelete: Cascade)
   cards RetroCard[]
@@ -49,14 +49,15 @@ model RetroColumn {
 }
 
 model RetroCard {
-  id         String   @id @default(uuid()) @db.Uuid
-  columnId   String   @map("column_id") @db.Uuid
-  authorId   String   @map("author_id") @db.Uuid
-  content    String
-  position   Int      @db.SmallInt
-  mergedFrom String[] @map("merged_from") @db.Uuid
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+  id               String   @id @default(uuid()) @db.Uuid
+  columnId         String   @map("column_id") @db.Uuid
+  authorId         String   @map("author_id") @db.Uuid
+  content          String
+  position         Int
+  mergedFrom       String[] @map("merged_from") @db.Uuid
+  mergedSnapshots  Json     @default("[]") @map("merged_snapshots")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
   column RetroColumn @relation(fields: [columnId], references: [id], onDelete: Cascade)
   author Session     @relation(fields: [authorId], references: [id])

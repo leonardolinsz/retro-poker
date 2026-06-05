@@ -3,23 +3,27 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { SessionService } from '../../services/session.service';
+import { ThemeToggleComponent } from '../../components/theme-toggle.component';
 
 @Component({
   selector: 'app-poker-lobby',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, ThemeToggleComponent],
   template: `
-    <div class="min-h-screen bg-gradient-to-br from-[#0F172A] to-[#1E293B] flex flex-col items-center justify-center px-4">
-      <a routerLink="/" class="absolute top-6 left-6 text-xl font-bold text-white/80 hover:text-white transition">
+    <div class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 dark:from-[#0F172A] dark:to-[#1E293B] flex flex-col items-center justify-center px-4">
+      <a routerLink="/" class="absolute top-6 left-6 text-xl font-bold text-slate-600 hover:text-slate-900 dark:text-white/80 dark:hover:text-white transition">
         FocusScrum
       </a>
+      <div class="absolute top-6 right-6">
+        <app-theme-toggle />
+      </div>
       <div class="w-full max-w-md">
-        <h1 class="text-4xl font-bold text-white text-center mb-2">Planning Poker</h1>
-        <p class="text-slate-400 text-center mb-10">Crie uma sessão de estimativa para seu time</p>
+        <h1 class="text-4xl font-bold text-slate-800 dark:text-white text-center mb-2">Planning Poker</h1>
+        <p class="text-slate-500 dark:text-slate-400 text-center mb-10">Crie uma sessão de estimativa para seu time</p>
         <form (submit)="handleCreate($event)" class="space-y-4">
           <input [(ngModel)]="name" name="name" autofocus
                  placeholder="Nome da sessão..."
-                 class="w-full rounded-2xl bg-white/10 border border-white/10 px-5 py-4 text-white text-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition placeholder:text-slate-500" />
+                 class="w-full rounded-2xl bg-white dark:bg-white/10 border border-slate-300 dark:border-white/10 px-5 py-4 text-slate-800 dark:text-white text-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition placeholder:text-slate-400 dark:placeholder:text-slate-500" />
           <button type="submit" [disabled]="loading || !name.trim()"
                   class="w-full rounded-2xl bg-blue-600 py-4 text-lg font-semibold text-white shadow-lg shadow-blue-600/30 transition-all hover:bg-blue-500 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed">
             {{ loading ? 'Criando...' : 'Criar Sala' }}

@@ -1,5 +1,11 @@
 // ── Retro Events ──
 
+export interface MergedSnapshot {
+  id: string;
+  content: string;
+  authorId: string;
+}
+
 export interface RetroCard {
   id: string;
   columnId: string;
@@ -7,6 +13,7 @@ export interface RetroCard {
   content: string;
   position: number;
   mergedFrom: string[];
+  mergedSnapshots: MergedSnapshot[];
   createdAt: string;
   updatedAt: string;
 }
@@ -35,6 +42,7 @@ export interface CardCreatePayload { columnId: string; content: string }
 export interface CardUpdatePayload { cardId: string; content: string }
 export interface CardMovePayload { cardId: string; targetColumnId: string; targetPosition: number }
 export interface CardMergePayload { sourceCardId: string; targetCardId: string }
+export interface CardUnmergePayload { cardId: string; snapshotId: string }
 export interface CardDeletePayload { cardId: string }
 export interface ColumnRenamePayload { columnId: string; name: string }
 export interface ColumnRemovePayload { columnId: string }

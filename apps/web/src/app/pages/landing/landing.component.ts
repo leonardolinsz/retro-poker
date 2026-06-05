@@ -1,12 +1,18 @@
 import { Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { ThemeToggleComponent } from '../../components/theme-toggle.component';
 
 @Component({
   selector: 'app-landing',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, ThemeToggleComponent],
   template: `
     <div class="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 px-4">
+      <!-- Theme toggle -->
+      <div class="absolute top-6 right-6">
+        <app-theme-toggle />
+      </div>
+
       <div class="text-center max-w-2xl">
         <h1 class="text-6xl font-bold tracking-tight mb-4 bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">
           FocusScrum
