@@ -56,8 +56,8 @@ const pokerNs = io.of('/poker');
 setupRetroWs(retroNs);
 setupPokerWs(pokerNs);
 
-httpServer.listen(PORT, () => {
-  console.log(`[focusscrum] server running on :${PORT}`);
+httpServer.listen(PORT, '0.0.0.0', () => {
+  console.log(`[focusscrum] server running on 0.0.0.0:${PORT}`);
 });
 
 process.on('SIGTERM', async () => {

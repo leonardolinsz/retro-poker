@@ -23,4 +23,5 @@ RUN cd apps/server && npx prisma generate
 
 EXPOSE 3001
 
-CMD ["pnpm", "dev:server"]
+# Run in production mode (no file watcher). Render injects PORT at runtime.
+CMD ["pnpm", "--filter", "@focusscrum/server", "exec", "tsx", "src/index.ts"]
