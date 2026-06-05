@@ -21,7 +21,11 @@ COPY prisma/ prisma/
 # Generate Prisma client
 RUN cd apps/server && npx prisma generate
 
+# Entrypoint: applies the DB schema at runtime, then starts the server
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
 EXPOSE 3001
 
-# Run in production mode (no file watcher). Render injects PORT at runtime.
-CMD ["pnpm", "--filter", "@focusscrum/server", "exec", "tsx", "src/index.ts"]
+# Render injects PORT at runtime. Schema is synced on boot by the entrypoint.
+CMD ["/app/docker-entrypoint.sh"]
