@@ -1,0 +1,17 @@
+name: Keep Render Awake
+
+on:
+  schedule:
+    # Roda a cada 10 minutos (o Render free dorme após ~15 min sem tráfego)
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {} # permite rodar manualmente pela aba Actions
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping retro-poker
+        run: |
+          echo "Fazendo ping em https://retro-poker.onrender.com"
+          curl -fsS -o /dev/null -w "Status: %{http_code}\n" https://retro-poker.onrender.com \
+            || echo "Ping falhou, mas isso não deve derrubar o workflow"
